@@ -37,5 +37,3 @@ class LogicError(Exception):
         if 'message' in self.__dict__:
             string += f", message={repr(self.message)}"
         return string + ")"
-
-

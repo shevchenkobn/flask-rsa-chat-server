@@ -1,9 +1,7 @@
 import asyncio
 from aiohttp import web
 from os import environ
-import json
 
-from errors import LogicError, ErrorCode
 from routes import routes
 
 loop = asyncio.get_event_loop()

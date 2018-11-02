@@ -2,7 +2,7 @@ import asyncio
 from aiohttp import web
 from os import environ
 
-from routes import routes
+from rest.routes import routes
 
 loop = asyncio.get_event_loop()
 app = web.Application()

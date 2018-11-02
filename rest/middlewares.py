@@ -32,7 +32,7 @@ async def error_handler(request, handler):
 middlewares = (
     error_handler,
     auth_handler,
-    get_auth_middlewares((
+    *get_auth_middlewares((
         ('POST', '/auth'),
         ('GET', '/status'),
         ('GET', '/key/info'),

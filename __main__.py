@@ -1,11 +1,14 @@
-import asyncio
 from aiohttp import web
 from os import environ
 
 from rest.routes import routes
+from rest.middlewares import middlewares
+from ws_api import ws_route
 
-loop = asyncio.get_event_loop()
-app = web.Application()
+app = web.Application(middlewares=middlewares)
 
 app.router.add_routes(routes)
-web.run_app(app, port=environ.get('PORT', 5000))
+app.router.add_routes([ws_route])
+
+port = environ.get('PORT', 5000)
+web.run_app(app, port=port)

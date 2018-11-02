@@ -55,7 +55,7 @@ def get_auth_middlewares(noauth_routes):
             raise web.HTTPForbidden(reason='Invalid user')
         del request['payload']
         request['user'] = storage[payload.id]
-        logger.log(f'User: {payload.id}')
+        logger.log(f'\nUser: {payload.id}')
         return await handler(request)
 
     return (

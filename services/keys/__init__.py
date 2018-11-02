@@ -2,6 +2,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.backends import default_backend
 
 from config import key_config
+from services.errors import ErrorCode, LogicError
 from services.logger import debug
 
 
@@ -63,6 +64,31 @@ def decrypt(private_key, byte_seq):
             )
         )
     return b''.join(bytes_list)
+
+
+def is_dict_valid_pbk(d):
+    return 'e' in d and 'n' in d \
+           and hasattr(d['n'], '__iter__') and isinstance(d['e'], int)
+
+
+def dict_to_public_key(d):
+    if not is_dict_valid_pbk(d):
+        raise LogicError(ErrorCode.KEY_BAD)
+    if len(d['n']) is (key_config.size + 7) // 8:
+        raise LogicError(ErrorCode.KEY_SIZE)
+
+    try:
+        n = int.from_bytes(bytes(i for i in d['n']), 'big')
+        return rsa.RSAPublicNumbers(d['e'], n).public_key(default_backend())
+    except:
+        raise LogicError(ErrorCode.KEY_BAD)
+
+
+def public_key_to_dict(pbk):
+    public_numbers = pbk.public_number()
+    n = public_numbers.n
+    int_tuple = (i for i in n.to_bytes((n.bit_length() + 7) // 8, 'big'))
+    return int_tuple, public_numbers.e
 
 
 def save_keys_for_user(username_or_user, decrypt_key, encrypt_key):

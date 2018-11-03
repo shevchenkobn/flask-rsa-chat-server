@@ -1,6 +1,7 @@
-import jwt
 from aiohttp import web
 from aiohttp_jwt import JWTMiddleware
+import jwt
+import traceback
 
 from config import jwt_config
 from services.errors import LogicError, ErrorCode
@@ -11,7 +12,7 @@ from services.users import storage
 
 class Payload(object):
     def __init__(self, user):
-        if hasattr(user, 'name') and isinstance(user.name, str):
+        if not (hasattr(user, 'name') and isinstance(user.name, str)):
             raise LogicError(ErrorCode.SERVER, f'{repr(user)} not a User!')
         self.id = user.name
 
@@ -20,7 +21,7 @@ class Payload(object):
 
     @staticmethod
     def is_valid(o):
-        return hasattr(o, 'id') and isinstance(o.id, str)
+        return 'id' in o and isinstance(o['id'], str)
 
 
 def create_token(user: User):
@@ -40,22 +41,26 @@ _jwt_check = JWTMiddleware(
 )
 
 
-def get_auth_middlewares(noauth_routes):
+# set app if you have problems. this is because of the problems with the lib
+def get_auth_middlewares(noauth_routes, app=None):
     @web.middleware
     async def prechecker(request, handler):
         if (request.method, request.path,) in noauth_routes:
             return await handler(request)
         else:
-            return await _jwt_check(request, handler)
+            return await (await _jwt_check(app, handler))(request)
 
     @web.middleware
     async def payload_handler(request, handler):
+        if (request.method, request.path,) in noauth_routes:
+            return await handler(request)
         payload = request['payload']
+        # logger.debug(payload)
         if not Payload.is_valid(payload):
             raise web.HTTPForbidden(reason='Invalid user')
         del request['payload']
-        request['user'] = storage[payload.id]
-        logger.log(f'\nUser: {payload.id}')
+        request['user'] = storage[payload['id']]
+        logger.info(f'\nUser: {payload["id"]}')
         return await handler(request)
 
     return (
@@ -65,7 +70,7 @@ def get_auth_middlewares(noauth_routes):
 
 
 @web.middleware
-def error_handle_middleware(request, handler):
+async def error_handle_middleware(request, handler):
     try:
         return await handler(request)
     except web.HTTPException as ex:
@@ -73,15 +78,16 @@ def error_handle_middleware(request, handler):
         if ex.status in (401, 403):
             return web.json_response(
                 status=ex.status,
-                body=LogicError(ErrorCode.AUTH_NO, ex.reason).to_dict()
+                data=LogicError(ErrorCode.AUTH_NO, ex.reason).to_dict()
             )
         raise ex
     except LogicError as ex:
         logger.error(ex)
+        traceback.print_exc()
         if ex.code is ErrorCode.AUTH_NO:
             return web.json_response(
                 status=403,
-                body=ex.to_dict()
+                data=ex.to_dict()
             )
         raise ex
 

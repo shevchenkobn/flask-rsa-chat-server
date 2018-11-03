@@ -1,4 +1,4 @@
-from types import MappingProxyType
+from copy import deepcopy
 
 
 _key_bit_size = 2048
@@ -6,7 +6,7 @@ _key_bit_size = 2048
 
 class _Config(object):
     def __init__(self, conf_dict):
-        self.__dict__ = MappingProxyType(conf_dict)
+        self.__dict__ = deepcopy(conf_dict)
 
     def __getitem__(self, item):
         return self.__dict__[item]

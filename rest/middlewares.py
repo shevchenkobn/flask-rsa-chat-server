@@ -1,4 +1,5 @@
 from aiohttp import web
+import traceback
 
 from services import logger
 from services.errors import LogicError, ErrorCode
@@ -10,23 +11,29 @@ async def error_handler(request, handler):
     try:
         return await handler(request)
     except LogicError as ex:
-        response = web.HTTPException(body=ex.to_dict())
+        response = web.json_response(data=ex.to_dict())
         if ex.code is ErrorCode.AUTH_NO:
             response.set_status(401)
         elif ex.code is ErrorCode.SERVER:
             response.set_status(500)
         else:
             response.set_status(400)
-        raise response
+        return response
     except web.HTTPException as ex:
         if ex.status is 404:
             raise ex
-        logger.error(f'wtf http Error: {repr(ex)}')
-        ex.body = LogicError(ErrorCode.SERVER).to_dict()
-        raise ex
-    except Exception as ex:
-        logger.error(f'wtf Error: {repr(ex)}')
-        raise web.HTTPServerError(body=LogicError(ErrorCode.SERVER).to_dict())
+        logger.error(f'Unexpected http Error: {repr(traceback.format_exc())}')
+        return web.json_response(
+            status=ex.status,
+            data=LogicError(ErrorCode.SERVER).to_dict()
+        )
+    except BaseException as ex:
+        logger.error(f'Unexpected Error: {repr(traceback.format_exc())}')
+        traceback.print_exc()
+        return web.json_response(
+            status=500,
+            data=LogicError(ErrorCode.SERVER).to_dict()
+        )
 
 
 middlewares = (

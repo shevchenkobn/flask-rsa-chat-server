@@ -1,19 +1,21 @@
+import traceback
+
 from services import logger
 from services.errors import LogicError, ErrorCode
 from services.keys import encrypt, decrypt
-from ws_api import event_to_attr, broadcast
+import ws_api
 
 
 class _EventHandlers(object):
     def __getitem__(self, event):
-        return self.__dict__.get(event_to_attr(event), None)
+        return getattr(self, ws_api.event_to_attr(event), None)
 
 
 class Subscribers(_EventHandlers):
     async def message_sent(self, client, payload):
         # FIXME: check type of message
         if not isinstance(payload, dict)\
-                or 'message' not in payload or '__iter__' not in payload['message']:
+                or 'message' not in payload or not hasattr(payload['message'], '__iter__'):
             logger.error('Ill-formed message')
             client.emit('error', LogicError(ErrorCode.MSG_BAD).to_dict())
             return
@@ -26,7 +28,7 @@ class Subscribers(_EventHandlers):
 
         msg_bytes = decrypt(client.user.decrypt_key, src_bytes)
         logger.debug(str(msg_bytes))
-        await broadcast('message-received', [], msg_bytes, client.user.name)
+        await ws_api.broadcast('message-received', [], msg_bytes, client.user.name)
 
 
 class Emitters(_EventHandlers):
@@ -61,6 +63,6 @@ class Emitters(_EventHandlers):
         pass
 
     async def error(self, client, err):
-        logger.error(err)
+        logger.error(traceback.format_exc())
         err = err if isinstance(err, LogicError) else LogicError(ErrorCode.SERVER)
-        client.emit_raw('raw', err.to_dict())
+        await client.emit_raw('error', err.to_dict())

@@ -28,11 +28,12 @@ async def get_token(request):
     except:
         raise LogicError(ErrorCode.AUTH_EMPTY_NAME)
 
-    user = storage.add(body['name'])
+    # logger.debug(body)
+    user = storage.add(body['username'])
     token = create_token(user)
     logger.info(f'\nUser {user.name} has token {token}')
     return web.json_response({
-        'token': token
+        'token': token.decode('utf-8')
     })
 
 
@@ -63,7 +64,7 @@ async def exchange_keys(request):
     try:
         body = await request.json()
         components = body['public-key']
-    except object as ex:
+    except BaseException as ex:
         logger.info(f'Bad body: {ex}')
         raise LogicError(ErrorCode.KEY_BAD)
     foreign_key = keys.dict_to_public_key(components)
@@ -75,7 +76,7 @@ async def exchange_keys(request):
     logger.debug(f'forPubK: {foreign_key.key_size}')
 
     user = request['user']
-    user.update_keys(private_key, public_key)
+    user.update_keys(foreign_key, private_key)
 
     return web.json_response({
         'public-key': keys.public_key_to_dict(public_key)

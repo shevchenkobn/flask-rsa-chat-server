@@ -1,5 +1,6 @@
 import aiohttp
 from aiohttp import web
+import traceback
 
 from services import logger
 from services.errors import ErrorCode, LogicError
@@ -22,7 +23,7 @@ class WSClient(object):
 
     async def emit(self, event, *args):
         emit = _emitters[event]
-        emit(self, *args)
+        await emit(self, *args)
 
     async def emit_raw(self, event, data):
         await self.ws_response.send_json({
@@ -46,7 +47,7 @@ async def broadcast(event, exclude, *args):
     broadcast_clients = (c for c in _clients if c not in exclude)
 
     for client in broadcast_clients:
-        emit(client, *args)
+        await emit(client, *args)
 
 
 async def websocket_handler(request):
@@ -60,7 +61,7 @@ async def websocket_handler(request):
     ws = web.WebSocketResponse()
     await ws.prepare(request)
     client = WSClient(ws, user)
-    _emitters['client-created'](client)
+    await _emitters['client-created'](client)
     await broadcast('user-joined', (), client)
     logger.info(f'Client {user.name} connected')
     _clients.append(client)
@@ -76,32 +77,29 @@ async def websocket_handler(request):
                 )
                 continue
             if not msg_json \
-                    or 'event' not in msg_json or isinstance(msg_json['event'], str)\
+                    or 'event' not in msg_json or not isinstance(msg_json['event'], str)\
                     or 'data' not in msg_json:
-                await ws.send_json(
-                    LogicError(ErrorCode.MSG_BAD).to_dict()
-                )
+                await client.emit('error', LogicError(ErrorCode.MSG_BAD))
                 continue
 
             logger.info(f'Event {msg_json["event"]}')
 
-            handler = lambda a, b: 9
+            handler = _subscribers[msg_json['event']]
             try:
-                handler(client, msg_json.data)
-            except object as err:
-                logger.error(f'Error for {user.name}:\nERROR: {err}')
-                await ws.send_json(
-                    LogicError(ErrorCode.MSG_BAD).to_dict()
-                )
+                await handler(client, msg_json['data'])
+            except BaseException as err:
+                logger.error(f'Error for {user.name}:\nERROR: {traceback.format_exc()}')
+                await client.emit('error', LogicError(ErrorCode.MSG_BAD))
         elif msg.type == aiohttp.WSMsgType.ERROR:
             logger.error(f'\nConnection {user.name} is about to close '
                          f'due to {ws.exception()}')
 
-        elif msg.type == aiohttp.WSMsgType.CLOSE:
-            _clients.remove(client)
-            await broadcast('user-left', (), client)
-            _emitters['client-disposed'](client)
-            logger.info(f'\nDisonnected {user.name} because of {msg.data} ({msg.extra})')
+        elif msg.type == aiohttp.WSMsgType.CLOSE: pass
+
+    _clients.remove(client)
+    await broadcast('user-left', (), client)
+    await _emitters['client-disposed'](client)
+    logger.info(f'\nDisonnected {user.name} because of {ws.close_code}')
 
     return ws
 

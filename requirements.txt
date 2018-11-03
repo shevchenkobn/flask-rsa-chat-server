@@ -1,0 +1,6 @@
+aiohttp==3.4.4
+pyee==5.0.0
+cryptography==2.3.1
+aiohttp_jwt==0.2.0
+PyJWT==1.6.4
+typing==3.6.6

@@ -39,13 +39,13 @@ def generate_keys():
 def encrypt(public_key, byte_seq):
     chunk_size = _chunk_sizes['encrypt']
     bytes_list = []
-    debug(len(byte_seq), chunk_size)
+    debug(f'len - {len(byte_seq)}; chunk - {chunk_size}')
     for i in range(0, len(byte_seq), chunk_size):
         debug(f'{i} - ${i + chunk_size}')
         bytes_list.append(
             public_key.encrypt(
                 byte_seq[i:i + chunk_size],
-                _default_padding
+                _default_padding()
             )
         )
     return b''.join(bytes_list)
@@ -54,13 +54,14 @@ def encrypt(public_key, byte_seq):
 def decrypt(private_key, byte_seq):
     chunk_size = _chunk_sizes['decrypt']
     bytes_list = []
-    debug(len(byte_seq), chunk_size)
+    debug(f'len - {len(byte_seq)}; chunk - {chunk_size}')
     for i in range(0, len(byte_seq), chunk_size):
-        debug(f'{i} - ${i + chunk_size}')
+        debug(f'{i} - {i + chunk_size}')
+        debug(byte_seq[i:i + chunk_size])
         bytes_list.append(
             private_key.decrypt(
                 byte_seq[i:i + chunk_size],
-                _default_padding
+                _default_padding()
             )
         )
     return b''.join(bytes_list)
@@ -74,7 +75,7 @@ def is_dict_valid_pbk(d):
 def dict_to_public_key(d):
     if not is_dict_valid_pbk(d):
         raise LogicError(ErrorCode.KEY_BAD)
-    if len(d['n']) is (key_config.size + 7) // 8:
+    if len(d['n']) is not (key_config.size + 7) // 8:
         raise LogicError(ErrorCode.KEY_SIZE)
 
     try:
@@ -85,11 +86,15 @@ def dict_to_public_key(d):
 
 
 def public_key_to_dict(pbk):
-    public_numbers = pbk.public_number()
+    public_numbers = pbk.public_numbers()
     n = public_numbers.n
-    int_tuple = (i for i in n.to_bytes((n.bit_length() + 7) // 8, 'big'))
-    return int_tuple, public_numbers.e
-
-
-def save_keys_for_user(username_or_user, decrypt_key, encrypt_key):
-    raise Exception("mustn't be used, just save fucking instances or add utils for encrypt key creation from user")
+    int_tuple = tuple(i for i in n.to_bytes((n.bit_length() + 7) // 8, 'big'))
+    d = {
+        'n': int_tuple,
+        'e': public_numbers.e,
+    }
+    debug(d)
+    return {
+        'n': int_tuple,
+        'e': public_numbers.e,
+    }
